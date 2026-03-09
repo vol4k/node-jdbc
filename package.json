@@ -29,7 +29,8 @@
     "prepublish": "npm run build",
     "maven": "node-java-maven",
     "pretest": "npm run maven",
-    "test": "mocha --config test/.mocharc.json",
+    "test": "mocha --config test/.mocharc.json && npm run test:install-smoke",
+    "test:install-smoke": "node test/install-smoke.js",
     "test:coverage": "nyc npm test"
   },
   "java": {
@@ -62,8 +63,8 @@
     "@types/debug": "0.0.29",
     "@types/java": "^0.7.31",
     "@types/lodash": "4.14.168",
-    "@types/node": "^7.0.29",
     "@types/mocha": "^2.2.41",
+    "@types/node": "^7.0.29",
     "@types/should": "^8.3.0",
     "java": "^0.18.0",
     "mocha": "^10.2.0",
@@ -77,7 +78,6 @@
   },
   "dependencies": {
     "bluebird": "^3.5.0",
-    "deasync": "^0.1.9",
     "debug": "^2.6.8",
     "lodash": ">=4.17.21"
   },

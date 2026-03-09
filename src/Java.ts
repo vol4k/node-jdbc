@@ -1,6 +1,6 @@
 import * as j from 'java'
-import * as deasync from 'deasync'
 import * as debug from 'debug'
+import { execFileSync } from 'child_process'
 
 import { EventEmitter } from 'events'
 import { JavaAPI } from './types/JavaApi'
@@ -16,6 +16,11 @@ const java: JavaAPI = Object.assign(j, {
 })
 
 let instance: Java = null
+
+interface IMavenBootstrapResult {
+  classpath: string[]
+  dependencies: {}
+}
 
 export class Java {
   public java: JavaAPI
@@ -43,21 +48,15 @@ export class Java {
 
     if (useMaven) {
       try {
-        let done: boolean = false
-        const mvn = require('node-java-maven')
-        mvn((err: Error, deps) => {
-          if (err) throw err
-          this.mavenClasspath = deps.classpath
-          this.mavenDependencies = deps.dependencies
-          done = true
-        })
-        deasync.loopWhile(() => !done)
+        const deps = this.resolveMavenDependenciesSync()
+        this.mavenClasspath = deps.classpath
+        this.mavenDependencies = deps.dependencies
         this.addClasspath(this.mavenClasspath)
       } catch (err) {
         if (err.code !== 'MODULE_NOT_FOUND') {
           throw err
         } else {
-          this._debug('node-jave-maven not found. useMaven is ignored.')
+          this._debug('node-java-maven not found. useMaven is ignored.')
         }
       }
     }
@@ -90,5 +89,64 @@ export class Java {
     } else {
       throw new Error(`Can not add classpath dependencies, because JVM instance is already created.\n\nDependencies: ${dependencies}`)
     }
+  }
+
+  private resolveMavenDependenciesSync (): IMavenBootstrapResult {
+    const mvnPath = require.resolve('node-java-maven')
+    try {
+      const output = execFileSync(process.execPath, [
+        '-e',
+        `
+          const mvn = require(process.argv[1])
+          const marker = '__NODE_JDBC_MAVEN_RESULT__'
+          mvn((err, deps) => {
+            if (err) {
+              process.stderr.write(marker + JSON.stringify({
+                ok: false,
+                error: {
+                  message: err.message,
+                  stack: err.stack,
+                  code: err.code
+                }
+              }))
+              process.exit(1)
+              return
+            }
+            process.stdout.write(marker + JSON.stringify({
+              ok: true,
+              deps
+            }))
+          })
+        `,
+        mvnPath
+      ], {
+        cwd: process.cwd(),
+        encoding: 'utf8'
+      })
+
+      return this.parseMavenBootstrapOutput(output)
+    } catch (err) {
+      return this.parseMavenBootstrapOutput(`${err.stdout || ''}${err.stderr || ''}`)
+    }
+  }
+
+  private parseMavenBootstrapOutput (output: string): IMavenBootstrapResult {
+    const marker = '__NODE_JDBC_MAVEN_RESULT__'
+    const markerIndex = output.lastIndexOf(marker)
+
+    if (markerIndex === -1) {
+      throw new Error('Failed to resolve Maven dependencies synchronously: missing child process result marker')
+    }
+
+    const result = JSON.parse(output.slice(markerIndex + marker.length))
+
+    if (result.ok !== true) {
+      const error: Error & { code?: string } = new Error(result.error.message)
+      error.stack = result.error.stack
+      error.code = result.error.code
+      throw error
+    }
+
+    return result.deps
   }
 }

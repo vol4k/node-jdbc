@@ -51,4 +51,37 @@ describe('JDBC', () => {
     const resultSet = result2.fetchAllResults()
     resultSet.should.have.length(2)
   })
+
+  it('should register the same driver only once', async () => {
+    const config = {
+      className: 'example.cached.Driver',
+      url: 'jdbc:h2:mem:test'
+    }
+
+    const jdbc1 = new JDBC(config) as any
+    const jdbc2 = new JDBC(config) as any
+    let classForNameCalls = 0
+    let registerCalls = 0
+
+    jdbc1.classForName = async () => {
+      classForNameCalls += 1
+      return { driver: 'first' }
+    }
+    jdbc1.registerDriver = async () => {
+      registerCalls += 1
+    }
+    jdbc2.classForName = async () => {
+      classForNameCalls += 1
+      return { driver: 'second' }
+    }
+    jdbc2.registerDriver = async () => {
+      registerCalls += 1
+    }
+
+    await jdbc1.init()
+    await jdbc2.init()
+
+    classForNameCalls.should.be.equal(1)
+    registerCalls.should.be.equal(1)
+  })
 })

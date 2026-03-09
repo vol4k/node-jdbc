@@ -29,9 +29,10 @@ export class JDBC {
 
   async init(): Promise<any> {
     if (!registeredDrivers.has(this.config.className)) {
-      this.debug('setup jdbc instance for', this.config.className);
-      const driver: any = await this.classForName();
-      await this.registerDriver(driver);
+      this.debug('setup jdbc instance for', this.config.className)
+      const driver: any = await this.classForName()
+      await this.registerDriver(driver)
+      registeredDrivers.set(this.config.className, driver)
     }
   }
 
